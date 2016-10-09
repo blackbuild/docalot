@@ -1,0 +1,105 @@
+buildscript {
+	repositories {
+		mavenCentral()
+		jcenter()
+	}
+	dependencies {
+		classpath "io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.5.3"
+		classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
+		classpath 'net.researchgate:gradle-release:2.3.5'
+	}
+}
+ext.isReleaseVersion = !version.endsWith("-SNAPSHOT")
+
+apply plugin: 'groovy'
+apply plugin: 'jacoco'
+apply plugin: 'com.bmuschko.nexus'
+apply plugin: 'io.codearte.nexus-staging'
+apply plugin: 'net.researchgate.release'
+
+sourceCompatibility = JavaVersion.VERSION_1_7
+targetCompatibility = JavaVersion.VERSION_1_7
+
+repositories {
+	mavenCentral()
+	mavenLocal()
+}
+
+jacoco {
+	toolVersion = "0.7.5.201505241946"
+}
+
+dependencies {
+	compile 'org.apache.ant:ant:1.9.4'
+	compile 'org.codehaus.groovy:groovy-all:2.4.5'
+	compile 'com.blackbuild.groovy.dsl.config:config-dsl:0.17.0'
+	compile 'org.slf4j:slf4j-api:1.7.18'
+	runtime 'org.slf4j:slf4j-simple:1.7.18'
+	testCompile('org.spockframework:spock-core:1.0-groovy-2.4') {
+		exclude module: 'groovy-all'
+	}
+	testRuntime "cglib:cglib-nodep:3.1"
+	testRuntime "org.objenesis:objenesis:2.1"
+}
+
+sourceSets {
+	test {
+		// Since we use Class.getResource to retrieve folders (not actual files) in tests, we need the
+		// resources to be present in the same folder as the class files
+		output.resourcesDir = output.classesDir
+	}
+}
+
+release {
+	tagTemplate = 'v${version}'
+}
+
+nexusStaging {
+	packageGroup = "com.blackbuild"
+}
+
+tasks.withType(Test) {
+	systemProperty 'java.io.tmp', file("test-tmp");
+}
+
+modifyPom {
+	project {
+		name 'Docalot'
+		packaging 'jar'
+		description 'Your friendly documentation knight'
+		url 'https://github.com/pauxus/docalot'
+
+		scm {
+			connection 'scm:svn:https://github.com/pauxus/config-dsl.git'
+			developerConnection 'scm:svn:https://github.com/pauxus/config-dsl.git'
+			url 'https://github.com/pauxus/config-dsl'
+		}
+
+		licenses {
+			license {
+				name 'The Apache License, Version 2.0'
+				url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+			}
+		}
+
+		developers {
+			developer {
+				id 'pauxus'
+				name 'Stephan Pauxberger'
+				email 'stephan@blackbuild.com'
+			}
+		}
+	}
+}
+
+afterEvaluate {
+	// modify dependecies for generated pom
+	project.poms*.whenConfigured { pom ->
+		pom.dependencies.find { it.artifactId == "groovy-all" }.optional = true
+		pom.dependencies.find { it.artifactId == "config-dsl" }.optional = true
+		pom.dependencies.find { it.artifactId == "slf4j-simple" }.optional = true
+	}
+}
+
+afterReleaseBuild.dependsOn uploadArchives
+
